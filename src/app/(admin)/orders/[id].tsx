@@ -1,28 +1,48 @@
-import { View, Text, StyleSheet, FlatList, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Pressable,
+  ActivityIndicator,
+} from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
-import orders from "@/assets/data/orders";
 import OrderItemListItem from "@/src/components/OrderItemListItem";
 import OrderListItem from "@/src/components/OrderListItem";
 import { OrderStatusList } from "@/src/types";
 import Colors from "@/src/constants/Colors";
+import { useOrderDetails, useUpdateOrder } from "@/src/api/orders";
 
 const OrderDetailScreen = () => {
-  const { id } = useLocalSearchParams();
+  const { id: idString } = useLocalSearchParams();
 
-  const order = orders.find((o) => o.id.toString() === id);
+  const id = parseFloat(typeof idString === "string" ? idString : idString[0]);
 
-  if (!order) {
-    return <Text>Order not found!</Text>;
+  const { data: order, error, isLoading } = useOrderDetails(id);
+  const { mutate: updatedOrder } = useUpdateOrder();
+
+  const updateStatus = (status) => {
+    updatedOrder({ id: id, updatedFields: { status } });
+  };
+
+  if (isLoading) {
+    return <ActivityIndicator />;
   }
+
+  if (error || !order) {
+    return <Text>Failed to fetch products</Text>;
+  }
+
+  console.log("Order Item Details: ", order);
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: `Order #${order.id}` }} />
+      <Stack.Screen options={{ title: `Order #${order?.id}` }} />
 
       <OrderListItem order={order} />
 
       <FlatList
-        data={order.order_items}
+        data={order?.order_items}
         renderItem={({ item }) => <OrderItemListItem item={item} />}
         contentContainerStyle={{ gap: 10 }}
         ListFooterComponent={() => (
@@ -32,7 +52,7 @@ const OrderDetailScreen = () => {
               {OrderStatusList.map((status) => (
                 <Pressable
                   key={status}
-                  onPress={() => console.warn("Update status")}
+                  onPress={() => updateStatus(status)}
                   style={{
                     borderColor: Colors.light.tint,
                     borderWidth: 1,
@@ -40,7 +60,7 @@ const OrderDetailScreen = () => {
                     borderRadius: 5,
                     marginVertical: 10,
                     backgroundColor:
-                      order.status === status
+                      order?.status === status
                         ? Colors.light.tint
                         : "transparent",
                   }}
@@ -48,7 +68,7 @@ const OrderDetailScreen = () => {
                   <Text
                     style={{
                       color:
-                        order.status === status ? "white" : Colors.light.tint,
+                        order?.status === status ? "white" : Colors.light.tint,
                     }}
                   >
                     {status}
