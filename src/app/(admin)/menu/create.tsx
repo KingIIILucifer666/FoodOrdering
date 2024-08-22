@@ -11,6 +11,11 @@ import {
   useProduct,
   useUpdateProduct,
 } from "@/src/api/products";
+import * as FileSystem from "expo-file-system";
+import { decode } from "base64-arraybuffer";
+import { randomUUID } from "expo-crypto";
+import { supabase } from "../../lib/supabase";
+import RemoteImage from "@/src/components/RemoteImage";
 
 const CreateProductScreen = () => {
   const [name, setName] = useState("");
@@ -36,8 +41,8 @@ const CreateProductScreen = () => {
   useEffect(() => {
     if (updatingProduct) {
       setName(updatingProduct.name);
-      setPrice(updatingProduct.price.toString());
-      setImage(updatingProduct.image);
+      setPrice(updatingProduct?.price.toString());
+      setImage(updatingProduct?.image);
     }
   }, [updatingProduct]);
 
@@ -69,19 +74,21 @@ const CreateProductScreen = () => {
     }
   };
 
-  const onUpdate = () => {
+  const onUpdate = async () => {
     if (!validateInput()) {
       return;
     }
 
     console.warn("Updating product...");
 
+    const imagePath = await uploadImage();
+
     updateProduct(
       {
         id,
         name,
         price: parseFloat(price),
-        image,
+        image: imagePath,
       },
       {
         onSuccess: () => {
@@ -92,18 +99,20 @@ const CreateProductScreen = () => {
     );
   };
 
-  const onCreate = () => {
+  const onCreate = async () => {
     if (!validateInput()) {
       return;
     }
 
     console.warn("Creating product...");
 
+    const imagePath = await uploadImage();
+
     insertProduct(
       {
         name,
         price: parseFloat(price),
-        image,
+        image: imagePath,
       },
       {
         onSuccess: () => {
@@ -149,6 +158,27 @@ const CreateProductScreen = () => {
     }
   };
 
+  const uploadImage = async () => {
+    if (!image?.startsWith("file://")) {
+      return;
+    }
+
+    const base64 = await FileSystem.readAsStringAsync(image, {
+      encoding: "base64",
+    });
+    const filePath = `${randomUUID()}.png`;
+    const contentType = "image/png";
+    const { data, error } = await supabase.storage
+      .from("product-images")
+      .upload(filePath, decode(base64), { contentType });
+
+    console.log("Image Error: ", error);
+
+    if (data) {
+      return data.path;
+    }
+  };
+
   const resetFields = () => {
     setName("");
     setPrice("");
@@ -159,8 +189,9 @@ const CreateProductScreen = () => {
       <Stack.Screen
         options={{ title: isUpdating ? "Update Product" : "Create Product" }}
       />
-      <Image
-        source={{ uri: image || defaultPizzaImage }}
+      <RemoteImage
+        path={image}
+        fallback={defaultPizzaImage}
         style={styles.image}
       />
       <Text style={styles.textButton} onPress={pickImage}>
